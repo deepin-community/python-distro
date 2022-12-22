@@ -1,0 +1,99 @@
+python-distro (1.6.0-2) unstable; urgency=medium
+
+  [ Stefano Rivera ]
+  * Adopt package, it needs a human maintainer.
+  * Extend UMEGAYA.
+  * Add autopkgtest that runs upstream test suite.
+  * Drop trivial import autopkgtest.
+  * Bump Standards-Version to 4.6.0, no changes needed.
+
+ -- Stefano Rivera <stefanor@debian.org>  Wed, 15 Sep 2021 14:43:00 -0700
+
+python-distro (1.6.0-1) unstable; urgency=medium
+
+  [ Ondřej Nový ]
+  * d/control: Update Maintainer field with new Debian Python Team
+    contact address.
+  * d/control: Update Vcs-* fields with new Debian Python Team Salsa
+    layout.
+
+  [ Gordon Ball ]
+  * d/control: drop Barry Warsaw from uploaders upon retirement - thanks for
+    your contributions! (Closes: #970166)
+  * d/watch: use github as upstream
+  * d/control, copyright: update homepage URL
+  * New upstream version 1.6.0
+  * d/control: debhelper compat 13
+  * d/tests/api-3.py: drop deprecated API calls
+  * d/control: mark python3-distro as multi-arch: foreign (Closes: #962664)
+
+ -- Gordon Ball <gordon@chronitis.net>  Tue, 17 Aug 2021 17:55:53 +0000
+
+python-distro (1.5.0-1) unstable; urgency=medium
+
+  * Team upload
+  * New upstream release
+
+ -- Scott Kitterman <scott@kitterman.com>  Sat, 02 May 2020 12:49:35 -0400
+
+python-distro (1.4.0-1) unstable; urgency=medium
+
+  * Team upload
+  * New upstream version 1.4.0
+  * Bump debhelper to 12
+  * Update Standards-Version to 4.5.0
+  * Set upstream metadata fields: Bug-Database, Bug-Submit, Repository,
+    Repository-Browse
+  * Add Rules-Requires-Root: no
+  * Remove override_dh_python2 in d/rules
+  * Remove remove-non-ascii-tests.patch, tests now succeeds
+  * Add Upstream-Contact to d/copyright
+
+ -- Håvard Flaget Aasen <haavard_aasen@yahoo.no>  Fri, 24 Jan 2020 21:44:05 +0100
+
+python-distro (1.3.0-2) unstable; urgency=medium
+
+  * Team upload.
+  * Use debhelper-compat instead of debian/compat.
+  * Drop Python 2 support (Closes: #937702).
+
+ -- Ondřej Nový <onovy@debian.org>  Mon, 14 Oct 2019 10:35:20 +0200
+
+python-distro (1.3.0-1) unstable; urgency=medium
+
+  [ Ondřej Nový ]
+  * d/control: Set Vcs-* to salsa.debian.org
+  * d/copyright: Fix Format URL to correct one
+  * d/control: Deprecating priority extra as per policy 4.0.1
+  * d/tests: Use AUTOPKGTEST_TMP instead of ADTTMP
+  * Convert git repository from git-dpm to gbp layout
+
+  [ Colin Watson ]
+  * Fix python3-distro description to say that it's for Python 3, not Python
+    2 (closes: #892876).
+
+  [ Thomas Goirand ]
+  * Team upload.
+  * New upstream release.
+  * Ran wrap-and-sort -bast.
+  * Removed version of python-all build-depends.
+  * Switched to debhelper 10.
+  * Point VCS URLs to Salsa.
+  * Standards-Version is now 4.2.0 (no change).
+  * Add python{3,}-pybuild as build-depends.
+  * Add remove-non-ascii-tests.patch.
+
+ -- Thomas Goirand <zigo@debian.org>  Tue, 28 Aug 2018 14:18:05 +0200
+
+python-distro (1.0.1-2) unstable; urgency=medium
+
+  * d/control: Depend on lsb-release for better information gathering.
+  * d/tests: Added.
+
+ -- Barry Warsaw <barry@debian.org>  Tue, 29 Nov 2016 12:13:06 -0500
+
+python-distro (1.0.1-1) unstable; urgency=medium
+
+  * Initial release. (Closes: #846155)
+
+ -- Barry Warsaw <barry@debian.org>  Mon, 28 Nov 2016 15:42:36 -0500

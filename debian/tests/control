@@ -1,0 +1,5 @@
+Tests: api-3.py
+Depends: python3-distro
+
+Tests: unittests3
+Depends: python3-all, python3-distro, python3-pytest
