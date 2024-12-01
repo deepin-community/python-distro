@@ -17,7 +17,7 @@ PACKAGENAME = distro
 
 # You can set these variables from the command line, and also
 # from the environment for the first two.
-SPHINXOPTS ?= -v
+SPHINXOPTS ?= -n -v
 SPHINXBUILD ?= sphinx-build
 SPHINXSOURCEDIR = docs
 SPHINXBUILDDIR = docs/_build
@@ -54,7 +54,7 @@ clean:
 
 .PHONY: build
 build:
-	python setup.py sdist bdist_wheel
+	python -m build
 
 .PHONY: publish
 publish:
@@ -72,12 +72,12 @@ dev: instdev test
 .PHONY: instdev
 instdev:
 	pip install -r dev-requirements.txt
-	python setup.py develop
+	pip install -e .
 	@echo "$@ done."
 
 .PHONY: install
 install:
-	python setup.py install
+	pip install .
 	@echo "$@ done."
 
 .PHONY: clobber

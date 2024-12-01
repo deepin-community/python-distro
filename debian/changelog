@@ -1,3 +1,17 @@
+python-distro (1.8.0-1) unstable; urgency=medium
+
+  * New upstream release.
+  * Build with pybuild.
+
+ -- Stefano Rivera <stefanor@debian.org>  Fri, 14 Oct 2022 17:00:22 +0200
+
+python-distro (1.7.0-1) unstable; urgency=medium
+
+  * New upstream version
+  * Add salsa-ci file (routine-update)
+
+ -- Stefano Rivera <stefanor@debian.org>  Sat, 19 Feb 2022 10:54:14 -0400
+
 python-distro (1.6.0-2) unstable; urgency=medium
 
   [ Stefano Rivera ]
