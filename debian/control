@@ -6,6 +6,8 @@ Uploaders: Stefano Rivera <stefanor@debian.org>
 Build-Depends:
  debhelper-compat (= 13),
  dh-python,
+ dh-sequence-python3,
+ pybuild-plugin-pyproject,
  python3-all,
  python3-setuptools
 Build-Depends-Indep: python3-pytest

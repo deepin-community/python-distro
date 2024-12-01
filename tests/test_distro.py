@@ -1,4 +1,3 @@
-# coding=utf-8
 # Copyright 2015,2016 Nir Cohen
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -14,15 +13,13 @@
 # limitations under the License.
 
 import ast
+import io
 import json
 import os
 import subprocess
 import sys
-
-try:
-    from StringIO import StringIO  # Python 2.x
-except ImportError:
-    from io import StringIO  # Python 3.x
+from types import FunctionType
+from typing import Any, Dict, List, NoReturn, Optional
 
 import pytest
 
@@ -36,7 +33,7 @@ DISTROS = [dist for dist in os.listdir(DISTROS_DIR) if dist != "__shared__"]
 
 IS_LINUX = sys.platform.startswith("linux")
 if IS_LINUX:
-    import distro
+    from distro import distro
 
     RELATIVE_UNIXCONFDIR = distro._UNIXCONFDIR[1:]
     RELATIVE_UNIXUSRLIBDIR = distro._UNIXUSRLIBDIR[1:]
@@ -44,7 +41,7 @@ if IS_LINUX:
 
 
 class TestNonLinuxPlatform:
-    def test_cant_use_on_windows(self):
+    def test_cant_use_on_windows(self) -> None:
         try:
             import distro  # NOQA
         except ImportError as ex:
@@ -53,46 +50,48 @@ class TestNonLinuxPlatform:
 
 @pytest.mark.skipif(not IS_LINUX, reason="Irrelevant on non-linux")
 class TestCli:
-    def _parse(self, command):
+    def _parse(self, command: str) -> None:
         sys.argv = command.split()
         distro.main()
 
-    def _run(self, command):
-        stdout, _ = subprocess.Popen(
-            command, stdout=subprocess.PIPE, stderr=subprocess.PIPE
-        ).communicate()
-        # Need to decode or we get bytes in Python 3.x
-        return stdout.decode("utf-8")
+    def _run(self, command: List[str]) -> str:
+        r = subprocess.run(
+            command,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            encoding="utf-8",
+        )
+        return r.stdout
 
-    def test_cli_for_coverage_yuch(self):
+    def test_cli_for_coverage_yuch(self) -> None:
         self._parse("distro")
         self._parse("distro -j")
 
-    def test_cli_can_parse_root_dir_args(self):
+    def test_cli_can_parse_root_dir_args(self) -> None:
         root_dir = os.path.join(RESOURCES, "cli", "fedora30")
-        self._parse("distro --root-dir {}".format(root_dir))
+        self._parse(f"distro --root-dir {root_dir}")
 
-    def test_cli(self):
+    def test_cli(self) -> None:
         command = [sys.executable, "-m", "distro"]
-        desired_output = "Name: " + distro.name(pretty=True)
+        desired_output = f"Name: {distro.name(pretty=True)}"
         distro_version = distro.version(pretty=True)
         distro_codename = distro.codename()
-        desired_output += "\n" + "Version: " + distro_version
-        desired_output += "\n" + "Codename: " + distro_codename
+        desired_output += f"\nVersion: {distro_version}"
+        desired_output += f"\nCodename: {distro_codename}"
         desired_output += "\n"
         assert self._run(command) == desired_output
 
-    def test_cli_json(self):
+    def test_cli_json(self) -> None:
         command = [sys.executable, "-m", "distro", "-j"]
         assert ast.literal_eval(self._run(command)) == distro.info()
 
-    def test_cli_with_root_dir(self):
+    def test_cli_with_root_dir(self) -> None:
         root_dir = os.path.join(RESOURCES, "cli", "fedora30")
         command = [sys.executable, "-m", "distro", "--root-dir", root_dir]
         desired_output = "Name: Fedora 30 (Thirty)\nVersion: 30\nCodename: \n"
         assert desired_output == self._run(command)
 
-    def test_cli_with_root_dir_as_json(self):
+    def test_cli_with_root_dir_as_json(self) -> None:
         root_dir = os.path.join(RESOURCES, "cli", "fedora30")
         command = [sys.executable, "-m", "distro", "-j", "--root-dir", root_dir]
         desired_output = {
@@ -108,12 +107,12 @@ class TestCli:
 
 
 @pytest.mark.skipif(not IS_LINUX, reason="Irrelevant on non-linux")
-class DistroTestCase(object):
+class DistroTestCase:
     """A base class for any testcase classes that test the distributions
     represented in the `DISTROS` subtree.
     """
 
-    def setup_method(self, test_method):
+    def setup_method(self, test_method: FunctionType) -> None:
         # The environment stays the same across all testcases, so we
         # save and restore the PATH env var in each test case that
         # changes it:
@@ -121,12 +120,12 @@ class DistroTestCase(object):
         self._saved_UNIXCONFDIR = distro._UNIXCONFDIR
         self._saved_UNIXUSRLIBDIR = distro._UNIXUSRLIBDIR
 
-    def teardown_method(self, test_method):
+    def teardown_method(self, test_method: FunctionType) -> None:
         os.environ["PATH"] = self._saved_path
         distro._UNIXCONFDIR = self._saved_UNIXCONFDIR
         distro._UNIXUSRLIBDIR = self._saved_UNIXUSRLIBDIR
 
-    def _setup_for_distro(self, distro_root):
+    def _setup_for_distro(self, distro_root: str) -> None:
         distro_bin = os.path.join(distro_root, "bin")
         # We don't want to pick up a possibly present lsb_release in the
         # distro that runs this test, so we use a PATH with only one entry:
@@ -137,16 +136,15 @@ class DistroTestCase(object):
 
 @pytest.mark.skipif(not IS_LINUX, reason="Irrelevant on non-linux")
 class TestOSRelease:
-    def setup_method(self, test_method):
+    def setup_method(self, test_method: FunctionType) -> None:
         dist = test_method.__name__.split("_")[1]
-        os_release = os.path.join(DISTROS_DIR, dist, "etc", "os-release")
         self.distro = distro.LinuxDistribution(
             include_lsb=False,
-            os_release_file=os_release,
             distro_release_file="path-to-non-existing-file",
+            root_dir=os.path.join(DISTROS_DIR, dist),
         )
 
-    def _test_outcome(self, outcome):
+    def _test_outcome(self, outcome: Dict[str, str]) -> None:
         assert self.distro.id() == outcome.get("id", "")
         assert self.distro.name() == outcome.get("name", "")
         assert self.distro.name(pretty=True) == outcome.get("pretty_name", "")
@@ -156,7 +154,7 @@ class TestOSRelease:
         assert self.distro.like() == outcome.get("like", "")
         assert self.distro.codename() == outcome.get("codename", "")
 
-    def test_arch_os_release(self):
+    def test_arch_os_release(self) -> None:
         desired_outcome = {
             "id": "arch",
             "name": "Arch Linux",
@@ -164,7 +162,18 @@ class TestOSRelease:
         }
         self._test_outcome(desired_outcome)
 
-    def test_kali_os_release(self):
+    def test_buildroot_os_release(self) -> None:
+        desired_outcome = {
+            "id": "buildroot",
+            "name": "Buildroot",
+            "pretty_name": "Buildroot 2022.02",
+            "version": "2022.02",
+            "pretty_version": "2022.02",
+            "best_version": "2022.02",
+        }
+        self._test_outcome(desired_outcome)
+
+    def test_kali_os_release(self) -> None:
         desired_outcome = {
             "id": "kali",
             "name": "Kali GNU/Linux",
@@ -176,7 +185,7 @@ class TestOSRelease:
         }
         self._test_outcome(desired_outcome)
 
-    def test_centos7_os_release(self):
+    def test_centos7_os_release(self) -> None:
         desired_outcome = {
             "id": "centos",
             "name": "CentOS Linux",
@@ -189,7 +198,7 @@ class TestOSRelease:
         }
         self._test_outcome(desired_outcome)
 
-    def test_coreos_os_release(self):
+    def test_coreos_os_release(self) -> None:
         desired_outcome = {
             "id": "coreos",
             "name": "CoreOS",
@@ -200,19 +209,31 @@ class TestOSRelease:
         }
         self._test_outcome(desired_outcome)
 
-    def test_debian8_os_release(self):
+    def test_debian8_os_release(self) -> None:
         desired_outcome = {
             "id": "debian",
             "name": "Debian GNU/Linux",
             "pretty_name": "Debian GNU/Linux 8 (jessie)",
             "version": "8",
             "pretty_version": "8 (jessie)",
-            "best_version": "8",
+            "best_version": "8.2",
             "codename": "jessie",
         }
         self._test_outcome(desired_outcome)
 
-    def test_fedora19_os_release(self):
+    def test_debian10_os_release(self) -> None:
+        desired_outcome = {
+            "id": "debian",
+            "name": "Debian GNU/Linux",
+            "pretty_name": "Debian GNU/Linux 10 (buster)",
+            "version": "10",
+            "pretty_version": "10 (buster)",
+            "best_version": "10.11",
+            "codename": "buster",
+        }
+        self._test_outcome(desired_outcome)
+
+    def test_fedora19_os_release(self) -> None:
         desired_outcome = {
             "id": "fedora",
             "name": "Fedora",
@@ -224,7 +245,7 @@ class TestOSRelease:
         }
         self._test_outcome(desired_outcome)
 
-    def test_fedora23_os_release(self):
+    def test_fedora23_os_release(self) -> None:
         desired_outcome = {
             "id": "fedora",
             "name": "Fedora",
@@ -236,7 +257,7 @@ class TestOSRelease:
         }
         self._test_outcome(desired_outcome)
 
-    def test_fedora30_os_release(self):
+    def test_fedora30_os_release(self) -> None:
         # Fedora 21 and above no longer have code names but the metadata in
         # os-release was only changed in a detectable way in Fedora 30+. The
         # piece in parenthesis in the pretty_name field contains the VARIANT
@@ -252,7 +273,15 @@ class TestOSRelease:
         }
         self._test_outcome(desired_outcome)
 
-    def test_kvmibm1_os_release(self):
+    def test_guix_os_release(self) -> None:
+        desired_outcome = {
+            "id": "guix",
+            "name": "Guix System",
+            "pretty_name": "Guix System",
+        }
+        self._test_outcome(desired_outcome)
+
+    def test_kvmibm1_os_release(self) -> None:
         desired_outcome = {
             "id": "kvmibm",
             "name": "KVM for IBM z Systems",
@@ -265,7 +294,7 @@ class TestOSRelease:
         }
         self._test_outcome(desired_outcome)
 
-    def test_linuxmint17_os_release(self):
+    def test_linuxmint17_os_release(self) -> None:
         # Note: LinuxMint 17 actually *does* have Ubuntu 14.04 data in its
         #       os-release file. See discussion in GitHub issue #78.
         desired_outcome = {
@@ -280,7 +309,7 @@ class TestOSRelease:
         }
         self._test_outcome(desired_outcome)
 
-    def test_mageia5_os_release(self):
+    def test_mageia5_os_release(self) -> None:
         desired_outcome = {
             "id": "mageia",
             "name": "Mageia",
@@ -292,12 +321,12 @@ class TestOSRelease:
         }
         self._test_outcome(desired_outcome)
 
-    def test_manjaro1512_os_release(self):
+    def test_manjaro1512_os_release(self) -> None:
         self._test_outcome(
             {"id": "manjaro", "name": "Manjaro Linux", "pretty_name": "Manjaro Linux"}
         )
 
-    def test_opensuse42_os_release(self):
+    def test_opensuse42_os_release(self) -> None:
         desired_outcome = {
             "id": "opensuse",
             "name": "openSUSE Leap",
@@ -309,33 +338,45 @@ class TestOSRelease:
         }
         self._test_outcome(desired_outcome)
 
-    def test_raspbian7_os_release(self):
+    def test_opensuse15_os_release(self) -> None:
+        desired_outcome = {
+            "id": "opensuse",
+            "name": "openSUSE Leap",
+            "pretty_name": "openSUSE Leap 15.2",
+            "version": "15.2",
+            "pretty_version": "15.2",
+            "best_version": "15.2",
+            "like": "suse opensuse",
+        }
+        self._test_outcome(desired_outcome)
+
+    def test_raspbian7_os_release(self) -> None:
         desired_outcome = {
             "id": "raspbian",
             "name": "Raspbian GNU/Linux",
             "pretty_name": "Raspbian GNU/Linux 7 (wheezy)",
             "version": "7",
             "pretty_version": "7 (wheezy)",
-            "best_version": "7",
+            "best_version": "7.1",
             "like": "debian",
             "codename": "wheezy",
         }
         self._test_outcome(desired_outcome)
 
-    def test_raspbian8_os_release(self):
+    def test_raspbian8_os_release(self) -> None:
         desired_outcome = {
             "id": "raspbian",
             "name": "Raspbian GNU/Linux",
             "pretty_name": "Raspbian GNU/Linux 8 (jessie)",
             "version": "8",
             "pretty_version": "8 (jessie)",
-            "best_version": "8",
+            "best_version": "8.0",
             "like": "debian",
             "codename": "jessie",
         }
         self._test_outcome(desired_outcome)
 
-    def test_rhel7_os_release(self):
+    def test_rhel7_os_release(self) -> None:
         desired_outcome = {
             "id": "rhel",
             "name": "Red Hat Enterprise Linux Server",
@@ -348,7 +389,20 @@ class TestOSRelease:
         }
         self._test_outcome(desired_outcome)
 
-    def test_slackware14_os_release(self):
+    def test_rocky_os_release(self) -> None:
+        desired_outcome = {
+            "id": "rocky",
+            "name": "Rocky Linux",
+            "pretty_name": "Rocky Linux 8.4 (Green Obsidian)",
+            "version": "8.4",
+            "pretty_version": "8.4 (Green Obsidian)",
+            "best_version": "8.4",
+            "like": "rhel centos fedora",
+            "codename": "Green Obsidian",
+        }
+        self._test_outcome(desired_outcome)
+
+    def test_slackware14_os_release(self) -> None:
         desired_outcome = {
             "id": "slackware",
             "name": "Slackware",
@@ -359,7 +413,7 @@ class TestOSRelease:
         }
         self._test_outcome(desired_outcome)
 
-    def test_sles12_os_release(self):
+    def test_sles12_os_release(self) -> None:
         desired_outcome = {
             "id": "sles",
             "name": "SLES",
@@ -370,7 +424,7 @@ class TestOSRelease:
         }
         self._test_outcome(desired_outcome)
 
-    def test_ubuntu14_os_release(self):
+    def test_ubuntu14_os_release(self) -> None:
         desired_outcome = {
             "id": "ubuntu",
             "name": "Ubuntu",
@@ -383,7 +437,7 @@ class TestOSRelease:
         }
         self._test_outcome(desired_outcome)
 
-    def test_ubuntu16_os_release(self):
+    def test_ubuntu16_os_release(self) -> None:
         desired_outcome = {
             "id": "ubuntu",
             "name": "Ubuntu",
@@ -396,7 +450,7 @@ class TestOSRelease:
         }
         self._test_outcome(desired_outcome)
 
-    def test_amazon2016_os_release(self):
+    def test_amazon2016_os_release(self) -> None:
         desired_outcome = {
             "id": "amzn",
             "name": "Amazon Linux AMI",
@@ -408,7 +462,7 @@ class TestOSRelease:
         }
         self._test_outcome(desired_outcome)
 
-    def test_scientific7_os_release(self):
+    def test_scientific7_os_release(self) -> None:
         desired_outcome = {
             "id": "rhel",
             "name": "Scientific Linux",
@@ -421,7 +475,7 @@ class TestOSRelease:
         }
         self._test_outcome(desired_outcome)
 
-    def test_gentoo_os_release(self):
+    def test_gentoo_os_release(self) -> None:
         desired_outcome = {
             "id": "gentoo",
             "name": "Gentoo",
@@ -429,7 +483,7 @@ class TestOSRelease:
         }
         self._test_outcome(desired_outcome)
 
-    def test_openelec6_os_release(self):
+    def test_openelec6_os_release(self) -> None:
         desired_outcome = {
             "id": "openelec",
             "name": "OpenELEC",
@@ -440,7 +494,7 @@ class TestOSRelease:
         }
         self._test_outcome(desired_outcome)
 
-    def test_cloudlinux7_os_release(self):
+    def test_cloudlinux7_os_release(self) -> None:
         desired_outcome = {
             "id": "cloudlinux",
             "codename": "Yury Malyshev",
@@ -461,31 +515,31 @@ class TestWithRootDir(TestOSRelease):
     on all OSes.
     """
 
-    def setup_method(self, test_method):
+    def setup_method(self, test_method: FunctionType) -> None:
         dist = test_method.__name__.split("_")[1]
         root_dir = os.path.join(DISTROS_DIR, dist)
         self.distro = distro.LinuxDistribution(
             include_lsb=False,
+            include_uname=False,
+            include_oslevel=False,
             os_release_file="",
             distro_release_file="path-to-non-existing-file",
-            include_uname=False,
             root_dir=root_dir,
         )
 
 
 @pytest.mark.skipif(not IS_LINUX, reason="Irrelevant on non-linux")
 class TestLSBRelease(DistroTestCase):
-    def setup_method(self, test_method):
-        super(TestLSBRelease, self).setup_method(test_method)
+    def setup_method(self, test_method: FunctionType) -> None:
+        super().setup_method(test_method)
         dist = test_method.__name__.split("_")[1]
         self._setup_for_distro(os.path.join(DISTROS_DIR, dist))
         self.distro = distro.LinuxDistribution(
-            include_lsb=True,
             os_release_file="path-to-non-existing-file",
             distro_release_file="path-to-non-existing-file",
         )
 
-    def _test_outcome(self, outcome):
+    def _test_outcome(self, outcome: Dict[str, str]) -> None:
         assert self.distro.id() == outcome.get("id", "")
         assert self.distro.name() == outcome.get("name", "")
         assert self.distro.name(pretty=True) == outcome.get("pretty_name", "")
@@ -495,7 +549,7 @@ class TestLSBRelease(DistroTestCase):
         assert self.distro.like() == outcome.get("like", "")
         assert self.distro.codename() == outcome.get("codename", "")
 
-    def test_linuxmint17_lsb_release(self):
+    def test_linuxmint17_lsb_release(self) -> None:
         desired_outcome = {
             "id": "linuxmint",
             "name": "LinuxMint",
@@ -507,7 +561,7 @@ class TestLSBRelease(DistroTestCase):
         }
         self._test_outcome(desired_outcome)
 
-    def test_manjaro1512_lsb_release(self):
+    def test_manjaro1512_lsb_release(self) -> None:
         self._test_outcome(
             {
                 "id": "manjarolinux",
@@ -521,7 +575,7 @@ class TestLSBRelease(DistroTestCase):
         )
 
     # @pytest.mark.xfail
-    # def test_openelec6_lsb_release(self):
+    # def test_openelec6_lsb_release(self) -> None:
     #     # TODO: This should be fixed as part of #109 when dealing
     #     # with distro inconsistencies
     #     desired_outcome = {
@@ -534,7 +588,7 @@ class TestLSBRelease(DistroTestCase):
     #     }
     #     self._test_outcome(desired_outcome)
 
-    def test_openbsd62_uname(self):
+    def test_openbsd62_uname(self) -> None:
         self._test_outcome(
             {
                 "id": "openbsd",
@@ -546,7 +600,7 @@ class TestLSBRelease(DistroTestCase):
             }
         )
 
-    def test_netbsd711_uname(self):
+    def test_netbsd711_uname(self) -> None:
         self._test_outcome(
             {
                 "id": "netbsd",
@@ -558,7 +612,7 @@ class TestLSBRelease(DistroTestCase):
             }
         )
 
-    def test_freebsd111_uname(self):
+    def test_freebsd111_uname(self) -> None:
         self._test_outcome(
             {
                 "id": "freebsd",
@@ -570,7 +624,7 @@ class TestLSBRelease(DistroTestCase):
             }
         )
 
-    def test_midnightbsd12_uname(self):
+    def test_midnightbsd12_uname(self) -> None:
         self._test_outcome(
             {
                 "id": "midnightbsd",
@@ -582,11 +636,10 @@ class TestLSBRelease(DistroTestCase):
             }
         )
 
-    def test_ubuntu14normal_lsb_release(self):
+    def test_ubuntu14normal_lsb_release(self) -> None:
         self._setup_for_distro(os.path.join(TESTDISTROS, "lsb", "ubuntu14_normal"))
 
         self.distro = distro.LinuxDistribution(
-            include_lsb=True,
             os_release_file="path-to-non-existing-file",
             distro_release_file="path-to-non-existing-file",
         )
@@ -602,11 +655,10 @@ class TestLSBRelease(DistroTestCase):
         }
         self._test_outcome(desired_outcome)
 
-    def test_ubuntu14nomodules_lsb_release(self):
+    def test_ubuntu14nomodules_lsb_release(self) -> None:
         self._setup_for_distro(os.path.join(TESTDISTROS, "lsb", "ubuntu14_nomodules"))
 
         self.distro = distro.LinuxDistribution(
-            include_lsb=True,
             os_release_file="path-to-non-existing-file",
             distro_release_file="path-to-non-existing-file",
         )
@@ -622,13 +674,12 @@ class TestLSBRelease(DistroTestCase):
         }
         self._test_outcome(desired_outcome)
 
-    def test_trailingblanks_lsb_release(self):
+    def test_trailingblanks_lsb_release(self) -> None:
         self._setup_for_distro(
             os.path.join(TESTDISTROS, "lsb", "ubuntu14_trailingblanks")
         )
 
         self.distro = distro.LinuxDistribution(
-            include_lsb=True,
             os_release_file="path-to-non-existing-file",
             distro_release_file="path-to-non-existing-file",
         )
@@ -645,13 +696,10 @@ class TestLSBRelease(DistroTestCase):
         self._test_outcome(desired_outcome)
 
     @pytest.mark.parametrize("errnum", ("001", "002", "126", "130", "255"))
-    def test_lsb_release_error_level(self, errnum):
-        self._setup_for_distro(
-            os.path.join(TESTDISTROS, "lsb", "lsb_rc{0}".format(errnum))
-        )
+    def test_lsb_release_error_level(self, errnum: str) -> None:
+        self._setup_for_distro(os.path.join(TESTDISTROS, "lsb", f"lsb_rc{errnum}"))
 
         lsb_release_info = distro.LinuxDistribution(
-            include_lsb=True,
             os_release_file="path-to-non-existing-file",
             distro_release_file="path-to-non-existing-file",
         )._lsb_release_info
@@ -661,7 +709,7 @@ class TestLSBRelease(DistroTestCase):
 
 @pytest.mark.skipif(not IS_LINUX, reason="Irrelevant on non-linux")
 class TestSpecialRelease(DistroTestCase):
-    def _test_outcome(self, outcome):
+    def _test_outcome(self, outcome: Dict[str, str]) -> None:
         assert self.distro.id() == outcome.get("id", "")
         assert self.distro.name() == outcome.get("name", "")
         assert self.distro.name(pretty=True) == outcome.get("pretty_name", "")
@@ -674,7 +722,7 @@ class TestSpecialRelease(DistroTestCase):
         assert self.distro.minor_version() == outcome.get("minor_version", "")
         assert self.distro.build_number() == outcome.get("build_number", "")
 
-    def test_empty_release(self):
+    def test_empty_release(self) -> None:
         distro_release = os.path.join(SPECIAL, "empty-release")
 
         self.distro = distro.LinuxDistribution(
@@ -686,7 +734,16 @@ class TestSpecialRelease(DistroTestCase):
         desired_outcome = {"id": "empty"}
         self._test_outcome(desired_outcome)
 
-    def test_unknowndistro_release(self):
+    def test_dontincludeuname(self) -> None:
+        self._setup_for_distro(os.path.join(TESTDISTROS, "distro", "dontincludeuname"))
+
+        self.distro = distro.LinuxDistribution(include_uname=False)
+
+        assert self.distro.uname_attr("id") == ""
+        assert self.distro.uname_attr("name") == ""
+        assert self.distro.uname_attr("release") == ""
+
+    def test_unknowndistro_release(self) -> None:
         self._setup_for_distro(os.path.join(TESTDISTROS, "distro", "unknowndistro"))
 
         self.distro = distro.LinuxDistribution()
@@ -704,7 +761,7 @@ class TestSpecialRelease(DistroTestCase):
         }
         self._test_outcome(desired_outcome)
 
-    def test_bad_uname(self):
+    def test_bad_uname(self) -> None:
         self._setup_for_distro(os.path.join(TESTDISTROS, "distro", "baduname"))
         self.distro = distro.LinuxDistribution()
 
@@ -712,7 +769,15 @@ class TestSpecialRelease(DistroTestCase):
         assert self.distro.uname_attr("name") == ""
         assert self.distro.uname_attr("release") == ""
 
-    def test_usrlibosreleaseonly(self):
+    def test_empty_uname(self) -> None:
+        self._setup_for_distro(os.path.join(TESTDISTROS, "distro", "emptyuname"))
+        self.distro = distro.LinuxDistribution()
+
+        assert self.distro.uname_attr("id") == ""
+        assert self.distro.uname_attr("name") == ""
+        assert self.distro.uname_attr("release") == ""
+
+    def test_usrlibosreleaseonly(self) -> None:
         self._setup_for_distro(
             os.path.join(TESTDISTROS, "distro", "usrlibosreleaseonly")
         )
@@ -730,18 +795,18 @@ class TestSpecialRelease(DistroTestCase):
 class TestDistroRelease:
     def _test_outcome(
         self,
-        outcome,
-        distro_name="",
-        version="",
-        release_file_id="",
-        release_file_suffix="release",
-    ):
+        outcome: Dict[str, str],
+        distro_name: str = "",
+        version: str = "",
+        release_file_id: str = "",
+        release_file_suffix: str = "release",
+    ) -> None:
         release_file_id = release_file_id or distro_name
         distro_release = os.path.join(
             DISTROS_DIR,
             distro_name + version,
             "etc",
-            "{0}-{1}".format(release_file_id, release_file_suffix),
+            f"{release_file_id}-{release_file_suffix}",
         )
         self.distro = distro.LinuxDistribution(
             include_lsb=False,
@@ -761,11 +826,11 @@ class TestDistroRelease:
         assert self.distro.minor_version() == outcome.get("minor_version", "")
         assert self.distro.build_number() == outcome.get("build_number", "")
 
-    def test_arch_dist_release(self):
+    def test_arch_dist_release(self) -> None:
         desired_outcome = {"id": "arch"}
         self._test_outcome(desired_outcome, "arch")
 
-    def test_centos5_dist_release(self):
+    def test_centos5_dist_release(self) -> None:
         desired_outcome = {
             "id": "centos",
             "name": "CentOS",
@@ -779,7 +844,7 @@ class TestDistroRelease:
         }
         self._test_outcome(desired_outcome, "centos", "5")
 
-    def test_centos7_dist_release(self):
+    def test_centos7_dist_release(self) -> None:
         desired_outcome = {
             "id": "centos",
             "name": "CentOS Linux",
@@ -794,7 +859,7 @@ class TestDistroRelease:
         }
         self._test_outcome(desired_outcome, "centos", "7")
 
-    def test_fedora19_dist_release(self):
+    def test_fedora19_dist_release(self) -> None:
         desired_outcome = {
             "id": "fedora",
             "name": "Fedora",
@@ -807,7 +872,7 @@ class TestDistroRelease:
         }
         self._test_outcome(desired_outcome, "fedora", "19")
 
-    def test_fedora23_dist_release(self):
+    def test_fedora23_dist_release(self) -> None:
         desired_outcome = {
             "id": "fedora",
             "name": "Fedora",
@@ -820,7 +885,7 @@ class TestDistroRelease:
         }
         self._test_outcome(desired_outcome, "fedora", "23")
 
-    def test_fedora30_dist_release(self):
+    def test_fedora30_dist_release(self) -> None:
         desired_outcome = {
             "id": "fedora",
             "name": "Fedora",
@@ -833,7 +898,7 @@ class TestDistroRelease:
         }
         self._test_outcome(desired_outcome, "fedora", "30")
 
-    def test_gentoo_dist_release(self):
+    def test_gentoo_dist_release(self) -> None:
         desired_outcome = {
             "id": "gentoo",
             "name": "Gentoo Base System",
@@ -846,7 +911,7 @@ class TestDistroRelease:
         }
         self._test_outcome(desired_outcome, "gentoo")
 
-    def test_kvmibm1_dist_release(self):
+    def test_kvmibm1_dist_release(self) -> None:
         desired_outcome = {
             "id": "base",
             "name": "KVM for IBM z Systems",
@@ -861,7 +926,7 @@ class TestDistroRelease:
         }
         self._test_outcome(desired_outcome, "kvmibm", "1", "base")
 
-    def test_mageia5_dist_release(self):
+    def test_mageia5_dist_release(self) -> None:
         desired_outcome = {
             "id": "mageia",
             "name": "Mageia",
@@ -874,7 +939,7 @@ class TestDistroRelease:
         }
         self._test_outcome(desired_outcome, "mageia", "5")
 
-    def test_manjaro1512_dist_release(self):
+    def test_manjaro1512_dist_release(self) -> None:
         self._test_outcome(
             {
                 "id": "manjaro",
@@ -887,7 +952,7 @@ class TestDistroRelease:
             "1512",
         )
 
-    def test_opensuse42_dist_release(self):
+    def test_opensuse42_dist_release(self) -> None:
         desired_outcome = {
             "id": "suse",
             "name": "openSUSE",
@@ -901,7 +966,7 @@ class TestDistroRelease:
         }
         self._test_outcome(desired_outcome, "opensuse", "42", "SuSE")
 
-    def test_oracle7_dist_release(self):
+    def test_oracle7_dist_release(self) -> None:
         desired_outcome = {
             "id": "oracle",
             "name": "Oracle Linux Server",
@@ -914,7 +979,7 @@ class TestDistroRelease:
         }
         self._test_outcome(desired_outcome, "oracle", "7")
 
-    def test_rhel6_dist_release(self):
+    def test_rhel6_dist_release(self) -> None:
         desired_outcome = {
             "id": "rhel",
             "name": "Red Hat Enterprise Linux Server",
@@ -928,7 +993,7 @@ class TestDistroRelease:
         }
         self._test_outcome(desired_outcome, "rhel", "6", "redhat")
 
-    def test_rhel7_dist_release(self):
+    def test_rhel7_dist_release(self) -> None:
         desired_outcome = {
             "id": "rhel",
             "name": "Red Hat Enterprise Linux Server",
@@ -942,7 +1007,7 @@ class TestDistroRelease:
         }
         self._test_outcome(desired_outcome, "rhel", "7", "redhat")
 
-    def test_slackware14_dist_release(self):
+    def test_slackware14_dist_release(self) -> None:
         desired_outcome = {
             "id": "slackware",
             "name": "Slackware",
@@ -957,7 +1022,7 @@ class TestDistroRelease:
             desired_outcome, "slackware", "14", release_file_suffix="version"
         )
 
-    def test_sles12_dist_release(self):
+    def test_sles12_dist_release(self) -> None:
         desired_outcome = {
             "id": "suse",
             "name": "SUSE Linux Enterprise Server",
@@ -970,7 +1035,7 @@ class TestDistroRelease:
         }
         self._test_outcome(desired_outcome, "sles", "12", "SuSE")
 
-    def test_cloudlinux5_dist_release(self):
+    def test_cloudlinux5_dist_release(self) -> None:
         # Uses redhat-release only to get information.
         # The id of 'rhel' can only be fixed with issue #109.
         desired_outcome = {
@@ -986,7 +1051,7 @@ class TestDistroRelease:
         }
         self._test_outcome(desired_outcome, "cloudlinux", "5", "redhat")
 
-    def test_cloudlinux6_dist_release(self):
+    def test_cloudlinux6_dist_release(self) -> None:
         # Same as above, only has redhat-release.
         desired_outcome = {
             "id": "cloudlinux",
@@ -1001,7 +1066,7 @@ class TestDistroRelease:
         }
         self._test_outcome(desired_outcome, "cloudlinux", "6", "redhat")
 
-    def test_cloudlinux7_dist_release(self):
+    def test_cloudlinux7_dist_release(self) -> None:
         desired_outcome = {
             "id": "cloudlinux",
             "codename": "Yury Malyshev",
@@ -1032,7 +1097,6 @@ class TestOverall(DistroTestCase):
     TODO: This class should have testcases for all distros that are claimed
     to be reliably maintained w.r.t. to their ID (see `id()`). Testcases for
     the following distros are still missing:
-      * `amazon` - Amazon Linux
       * `gentoo` - GenToo Linux
       * `ibm_powerkvm` - IBM PowerKVM
       * `parallels` - Parallels
@@ -1042,13 +1106,13 @@ class TestOverall(DistroTestCase):
       * `xenserver` - XenServer
     """
 
-    def setup_method(self, test_method):
-        super(TestOverall, self).setup_method(test_method)
+    def setup_method(self, test_method: FunctionType) -> None:
+        super().setup_method(test_method)
         dist = test_method.__name__.split("_")[1]
         self._setup_for_distro(os.path.join(DISTROS_DIR, dist))
         self.distro = distro.LinuxDistribution()
 
-    def _test_outcome(self, outcome):
+    def _test_outcome(self, outcome: Dict[str, str]) -> None:
         assert self.distro.id() == outcome.get("id", "")
         assert self.distro.name() == outcome.get("name", "")
         assert self.distro.name(pretty=True) == outcome.get("pretty_name", "")
@@ -1061,13 +1125,15 @@ class TestOverall(DistroTestCase):
         assert self.distro.minor_version() == outcome.get("minor_version", "")
         assert self.distro.build_number() == outcome.get("build_number", "")
 
-    def _test_non_existing_release_file(self):
+    def _test_non_existing_release_file(self) -> None:
         # Test the info from the searched distro release file
         # does not have one.
         assert self.distro.distro_release_file == ""
         assert len(self.distro.distro_release_info()) == 0
 
-    def _test_release_file_info(self, filename, outcome):
+    def _test_release_file_info(
+        self, filename: str, outcome: Dict[str, str]
+    ) -> Dict[str, str]:
         # Test the info from the searched distro release file
         assert os.path.basename(self.distro.distro_release_file) == filename
         distro_info = self.distro.distro_release_info()
@@ -1075,7 +1141,7 @@ class TestOverall(DistroTestCase):
             assert distro_info[key] == value
         return distro_info
 
-    def test_arch_release(self):
+    def test_arch_release(self) -> None:
         desired_outcome = {
             "id": "arch",
             "name": "Arch Linux",
@@ -1088,7 +1154,21 @@ class TestOverall(DistroTestCase):
         # considered a valid distro release file:
         self._test_non_existing_release_file()
 
-    def test_centos5_release(self):
+    def test_aix72_release(self) -> None:
+        desired_outcome = {
+            "id": "aix",
+            "name": "AIX",
+            "pretty_name": "AIX 7.2.0.0",
+            "version": "7.2.0.0",
+            "pretty_version": "7.2.0.0",
+            "best_version": "7.2.0.0",
+            "major_version": "7",
+            "minor_version": "2",
+            "build_number": "0",
+        }
+        self._test_outcome(desired_outcome)
+
+    def test_centos5_release(self) -> None:
         desired_outcome = {
             "id": "centos",
             "name": "CentOS",
@@ -1110,7 +1190,7 @@ class TestOverall(DistroTestCase):
         }
         self._test_release_file_info("centos-release", desired_info)
 
-    def test_centos7_release(self):
+    def test_centos7_release(self) -> None:
         desired_outcome = {
             "id": "centos",
             "name": "CentOS Linux",
@@ -1132,7 +1212,7 @@ class TestOverall(DistroTestCase):
         }
         self._test_release_file_info("centos-release", desired_info)
 
-    def test_coreos_release(self):
+    def test_coreos_release(self) -> None:
         desired_outcome = {
             "id": "coreos",
             "name": "CoreOS",
@@ -1147,7 +1227,7 @@ class TestOverall(DistroTestCase):
         self._test_outcome(desired_outcome)
         self._test_non_existing_release_file()
 
-    def test_debian8_release(self):
+    def test_debian8_release(self) -> None:
         desired_outcome = {
             "id": "debian",
             "name": "Debian GNU/Linux",
@@ -1161,7 +1241,21 @@ class TestOverall(DistroTestCase):
         self._test_outcome(desired_outcome)
         self._test_non_existing_release_file()
 
-    def test_exherbo_release(self):
+    def test_debian10_release(self) -> None:
+        desired_outcome = {
+            "id": "debian",
+            "name": "Debian GNU/Linux",
+            "pretty_name": "Debian GNU/Linux 10 (buster)",
+            "version": "10",
+            "pretty_version": "10 (buster)",
+            "best_version": "10.11",
+            "codename": "buster",
+            "major_version": "10",
+        }
+        self._test_outcome(desired_outcome)
+        self._test_non_existing_release_file()
+
+    def test_exherbo_release(self) -> None:
         desired_outcome = {
             "id": "exherbo",
             "name": "Exherbo",
@@ -1169,7 +1263,7 @@ class TestOverall(DistroTestCase):
         }
         self._test_outcome(desired_outcome)
 
-    def test_fedora19_release(self):
+    def test_fedora19_release(self) -> None:
         desired_outcome = {
             "id": "fedora",
             "name": "Fedora",
@@ -1190,7 +1284,7 @@ class TestOverall(DistroTestCase):
         }
         self._test_release_file_info("fedora-release", desired_info)
 
-    def test_fedora23_release(self):
+    def test_fedora23_release(self) -> None:
         desired_outcome = {
             "id": "fedora",
             "name": "Fedora",
@@ -1211,7 +1305,7 @@ class TestOverall(DistroTestCase):
         }
         self._test_release_file_info("fedora-release", desired_info)
 
-    def test_fedora30_release(self):
+    def test_fedora30_release(self) -> None:
         desired_outcome = {
             "id": "fedora",
             "name": "Fedora",
@@ -1232,7 +1326,7 @@ class TestOverall(DistroTestCase):
         }
         self._test_release_file_info("fedora-release", desired_info)
 
-    def test_kvmibm1_release(self):
+    def test_kvmibm1_release(self) -> None:
         desired_outcome = {
             "id": "kvmibm",
             "name": "KVM for IBM z Systems",
@@ -1256,7 +1350,7 @@ class TestOverall(DistroTestCase):
         }
         self._test_release_file_info("base-release", desired_info)
 
-    def test_linuxmint17_release(self):
+    def test_linuxmint17_release(self) -> None:
         desired_outcome = {
             "id": "ubuntu",
             "name": "Ubuntu",
@@ -1272,7 +1366,7 @@ class TestOverall(DistroTestCase):
         self._test_outcome(desired_outcome)
         self._test_non_existing_release_file()
 
-    def test_mageia5_release(self):
+    def test_mageia5_release(self) -> None:
         desired_outcome = {
             "id": "mageia",
             "name": "Mageia",
@@ -1295,7 +1389,7 @@ class TestOverall(DistroTestCase):
         }
         self._test_release_file_info("mageia-release", desired_info)
 
-    def test_manjaro1512_release(self):
+    def test_manjaro1512_release(self) -> None:
         self._test_outcome(
             {
                 "id": "manjaro",
@@ -1314,7 +1408,7 @@ class TestOverall(DistroTestCase):
             "manjaro-release", {"id": "manjaro", "name": "Manjaro Linux"}
         )
 
-    def test_opensuse42_release(self):
+    def test_opensuse42_release(self) -> None:
         desired_outcome = {
             "id": "opensuse",
             "name": "openSUSE Leap",
@@ -1337,7 +1431,21 @@ class TestOverall(DistroTestCase):
         }
         self._test_release_file_info("SuSE-release", desired_info)
 
-    def test_oracle7_release(self):
+    def test_opensuse15_release(self) -> None:
+        desired_outcome = {
+            "id": "opensuse",
+            "name": "openSUSE Leap",
+            "pretty_name": "openSUSE Leap 15.2",
+            "version": "15.2",
+            "pretty_version": "15.2",
+            "best_version": "15.2",
+            "like": "suse opensuse",
+            "major_version": "15",
+            "minor_version": "2",
+        }
+        self._test_outcome(desired_outcome)
+
+    def test_oracle7_release(self) -> None:
         desired_outcome = {
             "id": "oracle",
             "name": "Oracle Linux Server",
@@ -1358,14 +1466,14 @@ class TestOverall(DistroTestCase):
         distro_info = self._test_release_file_info("oracle-release", desired_info)
         assert "codename" not in distro_info
 
-    def test_raspbian7_release(self):
+    def test_raspbian7_release(self) -> None:
         desired_outcome = {
             "id": "raspbian",
             "name": "Raspbian GNU/Linux",
             "pretty_name": "Raspbian GNU/Linux 7 (wheezy)",
             "version": "7",
             "pretty_version": "7 (wheezy)",
-            "best_version": "7",
+            "best_version": "7.1",
             "like": "debian",
             "codename": "wheezy",
             "major_version": "7",
@@ -1373,14 +1481,14 @@ class TestOverall(DistroTestCase):
         self._test_outcome(desired_outcome)
         self._test_non_existing_release_file()
 
-    def test_raspbian8_release(self):
+    def test_raspbian8_release(self) -> None:
         desired_outcome = {
             "id": "raspbian",
             "name": "Raspbian GNU/Linux",
             "pretty_name": "Raspbian GNU/Linux 8 (jessie)",
             "version": "8",
             "pretty_version": "8 (jessie)",
-            "best_version": "8",
+            "best_version": "8.0",
             "like": "debian",
             "codename": "jessie",
             "major_version": "8",
@@ -1388,7 +1496,7 @@ class TestOverall(DistroTestCase):
         self._test_outcome(desired_outcome)
         self._test_non_existing_release_file()
 
-    def test_rhel5_release(self):
+    def test_rhel5_release(self) -> None:
         desired_outcome = {
             "id": "rhel",
             "name": "Red Hat Enterprise Linux Server",
@@ -1410,7 +1518,7 @@ class TestOverall(DistroTestCase):
         }
         self._test_release_file_info("redhat-release", desired_info)
 
-    def test_rhel6_release(self):
+    def test_rhel6_release(self) -> None:
         desired_outcome = {
             "id": "rhel",
             "name": "Red Hat Enterprise Linux Server",
@@ -1432,7 +1540,7 @@ class TestOverall(DistroTestCase):
         }
         self._test_release_file_info("redhat-release", desired_info)
 
-    def test_rhel7_release(self):
+    def test_rhel7_release(self) -> None:
         desired_outcome = {
             "id": "rhel",
             "name": "Red Hat Enterprise Linux Server",
@@ -1455,7 +1563,30 @@ class TestOverall(DistroTestCase):
         }
         self._test_release_file_info("redhat-release", desired_info)
 
-    def test_slackware14_release(self):
+    def test_rocky_release(self) -> None:
+        desired_outcome = {
+            "id": "rocky",
+            "name": "Rocky Linux",
+            "pretty_name": "Rocky Linux 8.4 (Green Obsidian)",
+            "version": "8.4",
+            "pretty_version": "8.4 (Green Obsidian)",
+            "best_version": "8.4",
+            "like": "rhel centos fedora",
+            "codename": "Green Obsidian",
+            "major_version": "8",
+            "minor_version": "4",
+        }
+        self._test_outcome(desired_outcome)
+
+        desired_info = {
+            "id": "centos",
+            "name": "Rocky Linux",
+            "version_id": "8.4",
+            "codename": "Green Obsidian",
+        }
+        self._test_release_file_info("centos-release", desired_info)
+
+    def test_slackware14_release(self) -> None:
         desired_outcome = {
             "id": "slackware",
             "name": "Slackware",
@@ -1472,7 +1603,7 @@ class TestOverall(DistroTestCase):
         distro_info = self._test_release_file_info("slackware-version", desired_info)
         assert "codename" not in distro_info
 
-    def test_sles12_release(self):
+    def test_sles12_release(self) -> None:
         desired_outcome = {
             "id": "sles",
             "name": "SLES",
@@ -1494,7 +1625,7 @@ class TestOverall(DistroTestCase):
         }
         self._test_release_file_info("SuSE-release", desired_info)
 
-    def test_ubuntu14_release(self):
+    def test_ubuntu14_release(self) -> None:
         desired_outcome = {
             "id": "ubuntu",
             "name": "Ubuntu",
@@ -1514,7 +1645,7 @@ class TestOverall(DistroTestCase):
         # release file:
         self._test_non_existing_release_file()
 
-    def test_ubuntu16_release(self):
+    def test_ubuntu16_release(self) -> None:
         desired_outcome = {
             "id": "ubuntu",
             "name": "Ubuntu",
@@ -1534,7 +1665,7 @@ class TestOverall(DistroTestCase):
         # release file:
         self._test_non_existing_release_file()
 
-    def test_amazon2016_release(self):
+    def test_amazon2016_release(self) -> None:
         desired_outcome = {
             "id": "amzn",
             "name": "Amazon Linux AMI",
@@ -1548,13 +1679,12 @@ class TestOverall(DistroTestCase):
         }
         self._test_outcome(desired_outcome)
 
-    def test_amazon2014_release(self):
+    def test_amazon2014_release(self) -> None:
         # Amazon Linux 2014 only contains a system-release file.
         # distro doesn't currently handle it.
-        desired_outcome = {}
-        self._test_outcome(desired_outcome)
+        self._test_outcome({})
 
-    def test_scientific6_release(self):
+    def test_scientific6_release(self) -> None:
         desired_outcome = {
             "id": "rhel",
             "name": "Scientific Linux",
@@ -1576,7 +1706,7 @@ class TestOverall(DistroTestCase):
         }
         self._test_release_file_info("redhat-release", desired_info)
 
-    def test_scientific7_release(self):
+    def test_scientific7_release(self) -> None:
         desired_outcome = {
             "id": "rhel",
             "name": "Scientific Linux",
@@ -1599,7 +1729,7 @@ class TestOverall(DistroTestCase):
         }
         self._test_release_file_info("redhat-release", desired_info)
 
-    def test_gentoo_release(self):
+    def test_gentoo_release(self) -> None:
         desired_outcome = {
             "id": "gentoo",
             "name": "Gentoo",
@@ -1619,7 +1749,7 @@ class TestOverall(DistroTestCase):
         }
         self._test_release_file_info("gentoo-release", desired_info)
 
-    def test_openelec6_release(self):
+    def test_openelec6_release(self) -> None:
         desired_outcome = {
             "id": "openelec",
             "name": "OpenELEC",
@@ -1632,7 +1762,7 @@ class TestOverall(DistroTestCase):
         }
         self._test_outcome(desired_outcome)
 
-    def test_mandriva2011_release(self):
+    def test_mandriva2011_release(self) -> None:
         desired_outcome = {
             "id": "mandrivalinux",
             "name": "MandrivaLinux",
@@ -1653,7 +1783,7 @@ class TestOverall(DistroTestCase):
         }
         self._test_release_file_info("mandrake-release", desired_info)
 
-    def test_cloudlinux5_release(self):
+    def test_cloudlinux5_release(self) -> None:
         # Uses redhat-release only to get information.
         # The id of 'rhel' can only be fixed with issue #109.
         desired_outcome = {
@@ -1669,7 +1799,7 @@ class TestOverall(DistroTestCase):
         }
         self._test_outcome(desired_outcome)
 
-    def test_cloudlinux6_release(self):
+    def test_cloudlinux6_release(self) -> None:
         # Same as above, only has redhat-release.
         desired_outcome = {
             "id": "cloudlinux",
@@ -1684,7 +1814,7 @@ class TestOverall(DistroTestCase):
         }
         self._test_outcome(desired_outcome)
 
-    def test_cloudlinux7_release(self):
+    def test_cloudlinux7_release(self) -> None:
         desired_outcome = {
             "id": "cloudlinux",
             "codename": "Yury Malyshev",
@@ -1700,7 +1830,7 @@ class TestOverall(DistroTestCase):
         self._test_outcome(desired_outcome)
 
 
-def _bad_os_listdir(path="."):
+def _bad_os_listdir(path: str = ".") -> NoReturn:
     """This function is used by TestOverallWithEtcNotReadable to simulate
     a folder that cannot be called with os.listdir() but files are still
     readable. Forces distro to guess which *-release files are available."""
@@ -1709,13 +1839,15 @@ def _bad_os_listdir(path="."):
 
 @pytest.mark.skipif(not IS_LINUX, reason="Irrelevant on non-linux")
 class TestOverallWithEtcNotReadable(TestOverall):
-    def setup_method(self, test_method):
+    def setup_method(self, test_method: FunctionType) -> None:
         self._old_listdir = os.listdir
-        os.listdir = _bad_os_listdir
-        super(TestOverallWithEtcNotReadable, self).setup_method(test_method)
+        # Incompatible types in assignment (expression has type
+        # "Callable[[str], NoReturn]", variable has type overloaded function)
+        os.listdir = _bad_os_listdir  # type: ignore[assignment]
+        super().setup_method(test_method)
 
-    def teardown_method(self, test_method):
-        super(TestOverallWithEtcNotReadable, self).teardown_method(test_method)
+    def teardown_method(self, test_method: FunctionType) -> None:
+        super().teardown_method(test_method)
         if os.listdir is _bad_os_listdir:
             os.listdir = self._old_listdir
 
@@ -1727,7 +1859,7 @@ class TestGetAttr(DistroTestCase):
     distros in `DISTROS`.
     """
 
-    def _test_attr(self, info_method, attr_method):
+    def _test_attr(self, info_method: str, attr_method: str) -> None:
         for dist in DISTROS:
             self._setup_for_distro(os.path.join(DISTROS_DIR, dist))
             _distro = distro.LinuxDistribution()
@@ -1736,27 +1868,30 @@ class TestGetAttr(DistroTestCase):
                 try:
                     assert info[key] == getattr(_distro, attr_method)(key)
                 except AssertionError:
-                    print("distro: {0}, key: {1}".format(dist, key))
+                    print(f"distro: {dist}, key: {key}")
 
-    def test_os_release_attr(self):
+    def test_os_release_attr(self) -> None:
         self._test_attr("os_release_info", "os_release_attr")
 
-    def test_lsb_release_attr(self):
+    def test_lsb_release_attr(self) -> None:
         self._test_attr("lsb_release_info", "lsb_release_attr")
 
-    def test_distro_release_attr(self):
+    def test_distro_release_attr(self) -> None:
         self._test_attr("distro_release_info", "distro_release_attr")
 
 
 @pytest.mark.skipif(not IS_LINUX, reason="Irrelevant on non-linux")
 class TestInfo(DistroTestCase):
-    def setup_method(self, test_method):
-        super(TestInfo, self).setup_method(test_method)
+    def setup_method(self, test_method: FunctionType) -> None:
+        super().setup_method(test_method)
         self.ubuntu14_os_release = os.path.join(
             DISTROS_DIR, "ubuntu14", "etc", "os-release"
         )
+        self.fedora30_os_release = os.path.join(
+            DISTROS_DIR, "fedora30", "etc", "os-release"
+        )
 
-    def test_info(self):
+    def test_info(self) -> None:
         _distro = distro.LinuxDistribution(
             include_lsb=False,
             os_release_file=self.ubuntu14_os_release,
@@ -1774,7 +1909,7 @@ class TestInfo(DistroTestCase):
         info = _distro.info()
         assert info == desired_info
 
-        desired_info_diff = {"version": "14.04 (Trusty Tahr)"}
+        desired_info_diff: Dict[str, Any] = {"version": "14.04 (Trusty Tahr)"}
         desired_info.update(desired_info_diff)
         info = _distro.info(pretty=True)
         assert info == desired_info
@@ -1792,8 +1927,8 @@ class TestInfo(DistroTestCase):
         info = _distro.info(pretty=True, best=True)
         assert info == desired_info
 
-    def test_none(self):
-        def _test_none(info):
+    def test_none(self) -> None:
+        def _test_none(info: distro.InfoDict) -> None:
             assert info["id"] == ""
             assert info["version"] == ""
             assert info["like"] == ""
@@ -1820,26 +1955,34 @@ class TestInfo(DistroTestCase):
         info = _distro.info(pretty=True, best=True)
         _test_none(info)
 
-    def test_linux_distribution(self):
+    def test_linux_distribution(self) -> None:
         _distro = distro.LinuxDistribution(
             include_lsb=False, os_release_file=self.ubuntu14_os_release
         )
         i = _distro.linux_distribution()
         assert i == ("Ubuntu", "14.04", "Trusty Tahr")
 
-    def test_linux_distribution_full_false(self):
+        _distro = distro.LinuxDistribution(
+            include_lsb=False, os_release_file=self.fedora30_os_release
+        )
+        i = _distro.linux_distribution()
+        assert i == ("Fedora", "30", "Thirty")
+
+    def test_linux_distribution_full_false(self) -> None:
         _distro = distro.LinuxDistribution(
             include_lsb=False, os_release_file=self.ubuntu14_os_release
         )
         i = _distro.linux_distribution(full_distribution_name=False)
         assert i == ("ubuntu", "14.04", "Trusty Tahr")
 
-    def test_all(self):
+    def test_all(self) -> None:
         """Test info() by comparing its results with the results of specific
         consolidated accessor functions.
         """
 
-        def _test_all(info, best=False, pretty=False):
+        def _test_all(
+            info: distro.InfoDict, best: bool = False, pretty: bool = False
+        ) -> None:
             assert info["id"] == _distro.id()
             assert info["version"] == _distro.version(pretty=pretty, best=best)
             assert info["version_parts"]["major"] == _distro.major_version(best=best)
@@ -1874,157 +2017,152 @@ class TestInfo(DistroTestCase):
 class TestOSReleaseParsing:
     """Test the parsing of os-release files."""
 
-    def setup_method(self, test_method):
-        self.distro = distro.LinuxDistribution(
-            include_lsb=False, os_release_file=None, distro_release_file=None
-        )
+    def setup_method(self, test_method: FunctionType) -> None:
+        self.distro = distro.LinuxDistribution(include_lsb=False)
 
-        self.distro.debug = True
+    def _get_props(self, input: str) -> Dict[str, str]:
+        return self.distro._parse_os_release_content(io.StringIO(input))
 
-    def _get_props(self, input):
-        return self.distro._parse_os_release_content(StringIO(input))
-
-    def _test_zero_length_props(self, input):
+    def _test_zero_length_props(self, input: str) -> None:
         props = self._get_props(input)
         assert len(props) == 0
 
-    def _test_empty_value(self, input):
+    def _test_empty_value(self, input: str) -> None:
         props = self._get_props(input)
         assert props.get("key", None) == ""
 
-    def _test_parsed_value(self, input):
+    def _test_parsed_value(self, input: str) -> None:
         props = self._get_props(input)
         assert props.get("key", None) == "value"
 
-    def test_kv_01_empty_file(self):
+    def test_kv_01_empty_file(self) -> None:
         self._test_zero_length_props("")
 
-    def test_kv_02_empty_line(self):
+    def test_kv_02_empty_line(self) -> None:
         self._test_zero_length_props("\n")
 
-    def test_kv_03_empty_line_with_crlf(self):
+    def test_kv_03_empty_line_with_crlf(self) -> None:
         self._test_zero_length_props("\r\n")
 
-    def test_kv_04_empty_line_with_just_cr(self):
+    def test_kv_04_empty_line_with_just_cr(self) -> None:
         self._test_zero_length_props("\r")
 
-    def test_kv_05_comment(self):
+    def test_kv_05_comment(self) -> None:
         self._test_zero_length_props("# KEY=value\n")
 
-    def test_kv_06_empty_value(self):
+    def test_kv_06_empty_value(self) -> None:
         self._test_empty_value("KEY=\n")
 
-    def test_kv_07_empty_value_single_quoted(self):
+    def test_kv_07_empty_value_single_quoted(self) -> None:
         self._test_empty_value("KEY=''\n")
 
-    def test_kv_08_empty_value_double_quoted(self):
+    def test_kv_08_empty_value_double_quoted(self) -> None:
         self._test_empty_value('KEY=""\n')
 
-    def test_kv_09_word(self):
+    def test_kv_09_word(self) -> None:
         self._test_parsed_value("KEY=value\n")
 
-    def test_kv_10_word_no_newline(self):
+    def test_kv_10_word_no_newline(self) -> None:
         self._test_parsed_value("KEY=value")
 
-    def test_kv_11_word_with_crlf(self):
+    def test_kv_11_word_with_crlf(self) -> None:
         self._test_parsed_value("KEY=value\r\n")
 
-    def test_kv_12_word_with_just_cr(self):
+    def test_kv_12_word_with_just_cr(self) -> None:
         self._test_parsed_value("KEY=value\r")
 
-    def test_kv_13_word_with_multi_blanks(self):
+    def test_kv_13_word_with_multi_blanks(self) -> None:
         self._test_empty_value("KEY=  cmd   \n")
         # Note: Without quotes, this assigns the empty string, and 'cmd' is
         # a separate token that is being ignored (it would be a command
         # in the shell).
 
-    def test_kv_14_unquoted_words(self):
+    def test_kv_14_unquoted_words(self) -> None:
         self._test_parsed_value("KEY=value cmd\n")
 
-    def test_kv_15_double_quoted_words(self):
+    def test_kv_15_double_quoted_words(self) -> None:
         props = self._get_props('KEY="a simple value" cmd\n')
         assert props.get("key", None) == "a simple value"
 
-    def test_kv_16_double_quoted_words_with_multi_blanks(self):
+    def test_kv_16_double_quoted_words_with_multi_blanks(self) -> None:
         props = self._get_props('KEY=" a  simple   value "\n')
         assert props.get("key", None) == " a  simple   value "
 
-    def test_kv_17_double_quoted_word_with_single_quote(self):
+    def test_kv_17_double_quoted_word_with_single_quote(self) -> None:
         props = self._get_props('KEY="it\'s value"\n')
         assert props.get("key", None) == "it's value"
 
-    def test_kv_18_double_quoted_word_with_double_quote(self):
+    def test_kv_18_double_quoted_word_with_double_quote(self) -> None:
         props = self._get_props('KEY="a \\"bold\\" move"\n')
         assert props.get("key", None) == 'a "bold" move'
 
-    def test_kv_19_single_quoted_words(self):
+    def test_kv_19_single_quoted_words(self) -> None:
         props = self._get_props("KEY='a simple value'\n")
         assert props.get("key", None) == "a simple value"
 
-    def test_kv_20_single_quoted_words_with_multi_blanks(self):
+    def test_kv_20_single_quoted_words_with_multi_blanks(self) -> None:
         props = self._get_props("KEY=' a  simple   value '\n")
         assert props.get("key", None) == " a  simple   value "
 
-    def test_kv_21_single_quoted_word_with_double_quote(self):
+    def test_kv_21_single_quoted_word_with_double_quote(self) -> None:
         props = self._get_props("KEY='a \"bold\" move'\n")
         assert props.get("key", None) == 'a "bold" move'
 
-    def test_kv_22_quoted_unicode_wordchar(self):
+    def test_kv_22_quoted_unicode_wordchar(self) -> None:
         # "wordchar" means it is in the shlex.wordchars variable.
-        props = self._get_props(u'KEY="wordchar: \u00CA (E accent grave)"\n')
-        assert props.get("key", None) == u"wordchar: \u00CA (E accent grave)"
+        props = self._get_props('KEY="wordchar: \u00CA (E accent grave)"\n')
+        assert props.get("key", None) == "wordchar: \u00CA (E accent grave)"
 
-    def test_kv_23_quoted_unicode_non_wordchar(self):
+    def test_kv_23_quoted_unicode_non_wordchar(self) -> None:
         # "non-wordchar" means it is not in the shlex.wordchars variable.
         props = self._get_props(
-            u'KEY="non-wordchar: \u00A1 (inverted exclamation mark)"\n'
+            'KEY="non-wordchar: \u00A1 (inverted exclamation mark)"\n'
         )
         assert (
-            props.get("key", None)
-            == u"non-wordchar: \u00A1 (inverted exclamation mark)"
+            props.get("key", None) == "non-wordchar: \u00A1 (inverted exclamation mark)"
         )
 
-    def test_kv_24_double_quoted_entire_single_quoted_word(self):
+    def test_kv_24_double_quoted_entire_single_quoted_word(self) -> None:
         props = self._get_props("KEY=\"'value'\"\n")
         assert props.get("key", None) == "'value'"
 
-    def test_kv_25_single_quoted_entire_double_quoted_word(self):
+    def test_kv_25_single_quoted_entire_double_quoted_word(self) -> None:
         props = self._get_props("KEY='\"value\"'\n")
         assert props.get("key", None) == '"value"'
 
-    def test_kv_26_double_quoted_multiline(self):
+    def test_kv_26_double_quoted_multiline(self) -> None:
         props = self.distro._parse_os_release_content(
-            StringIO('KEY="a multi\n' 'line value"\n')
+            io.StringIO('KEY="a multi\n' 'line value"\n')
         )
         assert props.get("key", None) == "a multi\nline value"
         # TODO: Find out why the result is not 'a multi line value'
 
-    def test_kv_27_double_quoted_multiline_2(self):
+    def test_kv_27_double_quoted_multiline_2(self) -> None:
         props = self._get_props("KEY=' a  simple   value '\n")
         props = self.distro._parse_os_release_content(
-            StringIO('KEY="a multi\n' 'line=value"\n')
+            io.StringIO('KEY="a multi\n' 'line=value"\n')
         )
         assert props.get("key", None) == "a multi\nline=value"
         # TODO: Find out why the result is not 'a multi line=value'
 
-    def test_kv_28_double_quoted_word_with_equal(self):
+    def test_kv_28_double_quoted_word_with_equal(self) -> None:
         props = self._get_props('KEY="var=value"\n')
         assert props.get("key", None) == "var=value"
 
-    def test_kv_29_single_quoted_word_with_equal(self):
+    def test_kv_29_single_quoted_word_with_equal(self) -> None:
         props = self._get_props("KEY='var=value'\n")
         assert props.get("key", None) == "var=value"
 
-    def test_kx_01(self):
+    def test_kx_01(self) -> None:
         props = self.distro._parse_os_release_content(
-            StringIO("KEY1=value1\n" 'KEY2="value  2"\n')
+            io.StringIO("KEY1=value1\n" 'KEY2="value  2"\n')
         )
         assert props.get("key1", None) == "value1"
         assert props.get("key2", None) == "value  2"
 
-    def test_kx_02(self):
+    def test_kx_02(self) -> None:
         props = self.distro._parse_os_release_content(
-            StringIO("# KEY1=value1\n" 'KEY2="value  2"\n')
+            io.StringIO("# KEY1=value1\n" 'KEY2="value  2"\n')
         )
         assert props.get("key1", None) is None
         assert props.get("key2", None) == "value  2"
@@ -2036,10 +2174,10 @@ class TestGlobal:
     arguments.
     """
 
-    def setup_method(self, test_method):
+    def setup_method(self, test_method: FunctionType) -> None:
         pass
 
-    def test_global(self):
+    def test_global(self) -> None:
         # Because the module-level functions use the module-global
         # LinuxDistribution instance, it would influence the tested
         # code too much if we mocked that in order to use the distro
@@ -2048,7 +2186,9 @@ class TestGlobal:
         # compare the result of the global functions with the result
         # of the methods on the global LinuxDistribution object.
 
-        def _test_consistency(function, kwargs=None):
+        def _test_consistency(
+            function: str, kwargs: Optional[Dict[str, Any]] = None
+        ) -> None:
             kwargs = kwargs or {}
             method_result = getattr(MODULE_DISTRO, function)(**kwargs)
             function_result = getattr(distro, function)(**kwargs)
@@ -2126,28 +2266,12 @@ class TestGlobal:
 class TestRepr:
     """Test the __repr__() method."""
 
-    def test_repr(self):
+    def test_repr(self) -> None:
         # We test that the class name and the names of all instance attributes
         # show up in the repr() string.
         repr_str = repr(distro._distro)
         assert "LinuxDistribution" in repr_str
         for attr in MODULE_DISTRO.__dict__.keys():
-            if attr in ("root_dir", "etc_dir", "usr_lib_dir"):
+            if attr in ("root_dir", "etc_dir", "usr_lib_dir", "_debian_version"):
                 continue
-            assert attr + "=" in repr_str
-
-
-@pytest.mark.skipif(not IS_LINUX, reason="Irrelevant on non-linux")
-class TestToStr:
-    """Test the _to_str() method."""
-
-    def test_to_str(self):
-        ret = distro.LinuxDistribution._to_str(b"bytes")
-        assert isinstance(ret, str)
-        assert ret == "bytes"
-
-        ret = distro.LinuxDistribution._to_str(u"bytes")
-        assert isinstance(ret, str)
-
-        ret = distro.LinuxDistribution._to_str("bytes")
-        assert isinstance(ret, str)
+            assert f"{attr}=" in repr_str
